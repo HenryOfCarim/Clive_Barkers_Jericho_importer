@@ -23,6 +23,7 @@ seq:
   - {id: unk_02, type: u4}
   - {id: num_nodes, type: u4}
   - {id: nodes, type: node, repeat: expr, repeat-expr: num_nodes}
+  
 
 types:
   unk_node:
@@ -72,8 +73,8 @@ types:
   cam:
     seq:
       - {id: node_id, type: str, size: 4, encoding: UTF-8}
-      - {id: unk_00, type: u4, repeat: expr, repeat-expr: 4}
-      - {id: unk_01, type: f4, repeat: expr, repeat-expr: 16}
+      - {id: unk_00, type: u4, repeat: expr, repeat-expr: 5}
+      - {id: unk_01, type: f4, repeat: expr, repeat-expr: 14}
   vertex_group:
     seq:
       - {id: num_bones, type: u4}
