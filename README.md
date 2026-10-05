@@ -6,7 +6,8 @@
 
 Tested on Blender 3.6
 
-![image](https://github.com/user-attachments/assets/d3fd80db-24d7-4fe1-a076-3df8a663be78)
+<img width="943" height="776" alt="image" src="https://github.com/user-attachments/assets/2efb2ea0-7f5e-4a24-8e57-e545d26c6f3d" />
+
 
 
 Resources of the game are packed and compressed into .packed archives to unpack them you need to use N.Kindt's scripts for python
@@ -23,4 +24,4 @@ jericho_decompress.py will create a `_decompressed` folder with resources ready 
 
 To install the addon, press Code>Download Zip
 Run Blender>Edit>Preferences>Add-ons>Install, select the downloaded archive, and enable the addon
-In the File>Import menu the .sm3 file option will appear
+In the File>Import menu, the .sm3 file option will appear
