@@ -8,7 +8,7 @@ from .import_sm3 import ImportSM3
 bl_info = {
     "name": "CBS Jericho import/export",
     "description": "import or export CBS Jericho .sm3 files",
-    "author": "Glogow Poland Mariusz Szkaradek",
+    "author": "HenryOfCarim",
     "version": (1, 0),
     "blender": (2, 80, 0),
     "category": "Import-Export"}
@@ -21,6 +21,7 @@ def import_sm3(context, filepath):
     mdl.make_armature()
     print("Armature was built")
     mdl.readdata()
+    bpy.ops.object.mode_set(mode='OBJECT')
     mdl.draw_all()
     f.close()
     return {'FINISHED'}

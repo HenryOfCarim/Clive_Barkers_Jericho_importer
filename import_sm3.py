@@ -3,6 +3,13 @@ import struct
 import os
 from mathutils import Matrix, Vector
 
+GAME_TO_BLENDER = Matrix((
+    (-1, 0, 0, 0),
+    (0, 0, -1, 0),
+    (0, 1, 0, 0),
+    (0, 0, 0, 1),
+))
+BLENDER_TO_GAME = GAME_TO_BLENDER.inverted()
 
 # Idea for future refactoring
 class MeshSM3():
@@ -12,7 +19,9 @@ class MeshSM3():
         self.uv = []
         self.vertex_groups = []
         self.grupy = []
-        self.objectmatrix = None
+        self.group_bounds = None
+        self.mesh_bounds = None
+        self.unknown_bounds_data = None
         self.mat_id = None
 
 
@@ -104,12 +113,11 @@ class ImportSM3():
         w = self.read_float(4)
         imported_matrix = Matrix([x, y, z, w])
         bonematrix = imported_matrix.transposed()
+        bonematrix = GAME_TO_BLENDER @ bonematrix @ BLENDER_TO_GAME
         self.read_float(23)
         bone = self.newarm.edit_bones[self.namebone]
+        bone.length = 0.1
         bone.matrix = bonematrix
-        bone.head = Vector((0, 0, 0))
-        bone.tail = Vector((bone.head[0], bone.head[1] + 0.1, bone.head[2]))
-        bone.transform(bonematrix)
 
     def read_mesh_data(self, num):
         self.grupy = []
@@ -148,9 +156,14 @@ class ImportSM3():
             self.read_ubyte(data[1])
         mat_id = self.read_int(2)
         self.read_int(1)
-        objectmatrix = self.read_float(16)
-        # print(self.id_object)
-        self.meshes[self.namebone+'='+str(num)].append(objectmatrix)
+        group_bounds = self.read_float(6)
+        mesh_bounds = self.read_float(6)
+        unknown_bounds_data = self.read_float(4)
+        self.meshes[self.namebone+'='+str(num)].append({
+            "group_bounds": group_bounds,
+            "mesh_bounds": mesh_bounds,
+            "unknown": unknown_bounds_data,
+        })
         # add id_mat
         self.meshes[self.namebone+'='+str(num)].append(mat_id[0])
 
@@ -249,13 +262,13 @@ class ImportSM3():
         seek = self.file.tell()
         self.file.seek(seek-36)
         print("Node start adress ", self.file.tell())
-        data = self.read_int(2)
+        node_data = self.read_int(2)
         print('==== MAKING NODES ====')
-        print('begin----------', data[0])
-        print('num nodes------', data[1])
-        for m in range(data[1]):
+        print('begin----------', node_data[0])
+        print('num nodes------', node_data[1])
+        for m in range(node_data[1]):
             self.bonenames.append('')
-        for m in range(data[1]):
+        for m in range(node_data[1]):
             self.make_bones()
             long = self.read_int(1)[0]
             # INI node?
@@ -310,7 +323,7 @@ class ImportSM3():
         if vtx_format == 48:
             for m in range(num_vtx):
                 v = self.read_float(3)
-                vertexes.append(v)
+                vertexes.append(tuple(GAME_TO_BLENDER.to_3x3() @ Vector(v)))
                 self.read_float(3)
                 u = self.read_float(1)[0]
                 v = self.read_float(1)[0]
@@ -320,7 +333,7 @@ class ImportSM3():
         if vtx_format == 80:
             for m in range(num_vtx):
                 v = self.read_float(3)
-                vertexes.append(v)
+                vertexes.append(tuple(GAME_TO_BLENDER.to_3x3() @ Vector(v)))
                 self.read_float(3)
                 u = self.read_float(1)[0]
                 v = self.read_float(1)[0]
@@ -342,12 +355,13 @@ class ImportSM3():
             mat_id = mesh_data[5]
             self.drawmesh(self.mesh_name)
             if len(self.groups) == 0:
-                matrix = self.make_right_mesh_position()
-                self.obj.matrix_world = matrix
+                bone_name = self.mesh_name.split('=')[0]
+                matrix = self.make_right_mesh_position(bone_name)
+
                 self.obj.parent = self.armature_ob
                 self.obj.parent_type = 'BONE'
-                self.obj.parent_bone = self.mesh_name.split('=')[0]
-
+                self.obj.parent_bone = bone_name
+                self.obj.matrix_world = matrix
             else:
                 self.make_vertex_group()
                 armature_modifier = self.obj.modifiers.new(name="Armature Modifier", type='ARMATURE')
@@ -359,7 +373,8 @@ class ImportSM3():
 
     def drawmesh(self, name):
         self.mesh = bpy.data.meshes.new(name)
-        self.mesh.from_pydata(self.vertexy, [], self.faceslist)
+        faces = [(face[0], face[2], face[1]) for face in self.faceslist]
+        self.mesh.from_pydata(self.vertexy, [], faces)
         if len(self.uvcoord) != 0:
             self.uv()
         self.obj = bpy.data.objects.new(name, self.mesh)
@@ -393,27 +408,11 @@ class ImportSM3():
                     self.obj.vertex_groups.new(name=bone_name)
                     vertex_groups[bone_name].add([v_id], weight, 'REPLACE')
 
-    def make_right_mesh_position(self):
-        name = self.mesh_name.split('=')[0]
-        bone_mat_world = obj_matrix = self.obj.matrix_world
-        # bones = self.newarm.bones.values()
-        # bones = self.armature_ob.bones
-        # bpy.ops.object.mode_set(mode='EDIT')
-        bones = self.armature_ob.data.bones
-        for bone in bones:
-            if bone.name == name:
-                # bone_mat = bone.matrix['ARMATURESPACE']
-                bone_mat = bone.matrix_local
-                bone_mat_world = bone_mat*obj_matrix
-        return bone_mat_world
+    def make_right_mesh_position(self, bone_name):
+        bone = self.armature_ob.data.bones.get(bone_name)
 
+        if bone is None:
+            print(f"Bone '{bone_name}' not found in armature '{self.armature_ob.name}'")
+            return Matrix.Identity(4)  # Return identity matrix if bone not found
 
-def text3d():
-    try:
-        text = Blender.Object.Get('Font')
-        textdata = text.getData()
-        textdata.setText(namemodel)
-        text.makeDisplayList()
-        Redraw()
-    except:
-        pass
+        return self.armature_ob.matrix_world @ bone.matrix_local

@@ -2,7 +2,7 @@ meta:
   endian: le
   file-extension: sm3
   id: sm3
-  ks-version: 0.10
+  ks-version: "0.11"
   title: Clive Baker's Jericho mesh format
   
 seq:
@@ -16,7 +16,7 @@ seq:
   - {id: unk_int01, type: u4}  
   - {id: unk_str02, type: str, size: 4, encoding: UTF-8} # INI
   - {id: data, type: u4, repeat: expr, repeat-expr: 3}
-  - {id: paths, type: strings_00, repeat: expr, repeat-expr: data[2]}
+  - {id: paths, type: strings_00, repeat: expr, repeat-expr: 'data[2]'}
   - {id: unk_floats, type: f4, repeat: expr, repeat-expr: 15}
   - {id: num_mat, type: u4}
   - {id: materials, type: material, repeat: expr, repeat-expr: num_mat}
@@ -30,6 +30,7 @@ types:
     seq:
       - {id: is_exist, type: u4}
       - {id: node_id, type: u4}
+  
   node:
     seq:
       - {id: parent_id, type: s4}
@@ -44,11 +45,13 @@ types:
       - {id: ini, type: ini_block, repeat: expr, repeat-expr: is_ini_node}
       - {id: is_sub_node, type: u4}
       - {id: sub_node_id, type: u4, repeat: expr, repeat-expr: is_sub_node}
-      - {id: mesh, type: meshes, if sub_node_id[0] == 2701131778}
-      - {id: camera, type: cam, if sub_node_id[0] == 2717908996}
+      - {id: mesh, type: meshes, if: 'sub_node_id[0] == 2701131778'}
+      - {id: camera, type: cam, if: 'sub_node_id[0] == 2717908996'}
+  
   meshes:
     seq:
       - {id: mesh_data, type: md3d, repeat: until, repeat-until: _.one_more == 0}
+  
   md3d:
     seq:
        - {id: id_name, type: str, size: 4, encoding: UTF-8}
@@ -63,27 +66,39 @@ types:
        - {id: unk_04, type: u4, repeat: expr, repeat-expr: 2}
        - {id: unk_05, type: u4, repeat: expr, repeat-expr: 2}
        - {id: data_limited_gr, type: u4, repeat: expr, repeat-expr: 2}
-       - {id: grupy, type: limited_group, if: data_limited_gr[1] == 0}
+       - {id: grupy, type: limited_group, if: 'data_limited_gr[1] == 0'}
        - {id: data2, type: u4, repeat: expr, repeat-expr: 2}
-       - {id: unk_struct, type: u1, repeat: expr, repeat-expr: data2[0]}
+       - {id: unk_struct, type: u1, repeat: expr, repeat-expr: 'data2[0]'}
        - {id: mat_id, type: u4, repeat: expr, repeat-expr: 2}
        - {id: unk_06, type: u4}
-       - {id: matrix, type: f4, repeat: expr, repeat-expr: 16}
+       - {id: group_bounds, type: bounding_box}
+       - {id: mesh_bounds, type: bounding_box}
+       - {id: unk_07, type: f4, repeat: expr, repeat-expr: 3}
+       - {id: unk_08, type: u4}
        - {id: one_more, type: u4}
+
+  bounding_box:
+    seq:
+      - {id: minimum, type: f4, repeat: expr, repeat-expr: 3}
+      - {id: maximum, type: f4, repeat: expr, repeat-expr: 3}
+
   cam:
     seq:
       - {id: node_id, type: str, size: 4, encoding: UTF-8}
       - {id: unk_00, type: u4, repeat: expr, repeat-expr: 5}
       - {id: unk_01, type: f4, repeat: expr, repeat-expr: 14}
+
   vertex_group:
     seq:
       - {id: num_bones, type: u4}
+
   face_data:
     seq:
       - {id: unk_str, type: strings_00}
       - {id: num_faces, type: u4}
       - {id: unk_01, type: u4}
       - {id: indices, type: face_indices, repeat: expr, repeat-expr: num_faces}
+
   vtx_data:
     seq:
       - {id: id_name, type: str, size: 4, encoding: UTF-8}
@@ -98,12 +113,14 @@ types:
             80: vtx80
         repeat: expr
         repeat-expr: num_vtx
+
   vtx48:
     seq:
       - {id: position, type: f4, repeat: expr, repeat-expr: 3}
       - {id: unk_00, type: f4, repeat: expr, repeat-expr: 3}
       - {id: uv_coord, type: uv}
       - {id: unk_01, type: f4, repeat: expr, repeat-expr: 4}
+
   vtx80:
     seq:
       - {id: position, type: f4, repeat: expr, repeat-expr: 3}
@@ -112,29 +129,35 @@ types:
       - {id: unk_01, type: f4, repeat: expr, repeat-expr: 6}
       - {id: unk_02, type: f4, repeat: expr, repeat-expr: 2}
       - {id: unk_03, type: f4, repeat: expr, repeat-expr: 4}
+
   uv:
     seq:
       - {id: u, type: f4}
       - {id: v, type: f4}
+
   limited_group:
     seq:
       - {id: num_gr, type: u4}
       - {id: unk_00, type: u4}
       - {id: grupy, type: vtx_grupy, repeat: expr, repeat-expr: num_gr}
+  
   vtx_grupy:
     seq:
       - {id: num_gr,type: u1}
       - {id: gr, type: u1, repeat: expr, repeat-expr: 3}
       - {id: weights, type: f4, repeat: expr, repeat-expr: 3}
+  
   face_indices:
     seq:
       - {id: idx, type: u2, repeat: expr, repeat-expr: 3}
+      
   ini_block:
     seq:
         - {id: id_name, type: str, size: 4, encoding: UTF-8}
         - {id: data, type: u4, repeat: expr, repeat-expr: 2}
         - {id: num_strings, type: u4}
         - {id: node_strings, type: strings_00, repeat: expr, repeat-expr: num_strings}
+  
   block_texture:
     seq:
       - {id: tex_id, type: u4}
@@ -144,10 +167,12 @@ types:
       body:
           type: texture
           if: is_used
+  
   strings_00:
     seq:
       - {id: str_size, type: u4}
       - {id: string, type: str, size: str_size, encoding: UTF-8}
+  
   material:
     seq:
       - {id: id_name, type: str, size: 4, encoding: UTF-8}
@@ -160,10 +185,12 @@ types:
       - {id: nothing_02, type: u4, repeat: expr, repeat-expr: 4}
       - {id: textures, type: texture, repeat: expr, repeat-expr: num_textures}
       - {id: filler_01, type: u4, repeat: expr, repeat-expr: 4}
+  
   texture:
    seq:
     - {id: is_texture, type: u4}
-    - {id: tex_data, type: tex_body, if is_texture == 1}
+    - {id: tex_data, type: tex_body, if: is_texture == 1}
+    
   tex_body:
     seq:
     - {id: id_name, type: str, size: 4, encoding: UTF-8}
@@ -174,3 +201,4 @@ types:
     - {id: unk_bytes, type: u1, repeat: expr, repeat-expr: 7}
     - {id: unk_floats, type: f4, repeat: expr, repeat-expr: 3}
     - {id: unk_filler, type: u4, repeat: expr, repeat-expr: 3}
+    
