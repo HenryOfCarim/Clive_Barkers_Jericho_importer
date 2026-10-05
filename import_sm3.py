@@ -11,6 +11,7 @@ GAME_TO_BLENDER = Matrix((
 ))
 BLENDER_TO_GAME = GAME_TO_BLENDER.inverted()
 
+
 # Idea for future refactoring
 class MeshSM3():
     def __init__(self):
@@ -73,13 +74,21 @@ class ImportSM3():
     def read_float(self, n):
         return struct.unpack(n*'f', self.file.read(n*4))
 
+    def material_name(self, mat_id):
+        if self.armature_ob is not None and self.armature_ob.data is not None:
+            armature_name = self.armature_ob.data.name
+        else:
+            armature_name = self.modelname
+        return f"{armature_name}-mat-{mat_id}"
+
     def create_material(self, m):
         self.read_string(8), self.read_int(1)  # MAT
         print('MATERIAL ', self.read_string(self.read_int(1)[0]))
+        mat_name = self.material_name(m)
         try:
-            mat = bpy.data.materials[('mat-'+str(m))]
+            mat = bpy.data.materials[mat_name]
         except KeyError:
-            mat = bpy.data.materials.new('mat-'+str(m))
+            mat = bpy.data.materials.new(mat_name)
         mat.use_nodes = True
         mat.blend_method = 'CLIP'
         self.read_ubyte(44), self.read_int(3)  # NOTHING
@@ -103,8 +112,12 @@ class ImportSM3():
         nameparent = self.read_string(self.read_int(1)[0])[-25:]
         # print("parent bone is {}".format(nameparent))
         if len(nameparent) > 0:
-            parent = self.newarm.edit_bones[nameparent]
-            self.newarm.edit_bones[self.namebone].parent = parent
+            try:
+                parent = self.newarm.edit_bones[nameparent]
+            except KeyError:
+                parent = None
+            if parent is not None:
+                self.newarm.edit_bones[self.namebone].parent = parent
         self.read_float(8)
         # bonematrix = Matrix([self.read_float(4), self.read_float(4), self.read_float(4), self.read_float(4)])
         x = self.read_float(4)
@@ -191,6 +204,7 @@ class ImportSM3():
                     name_image = os.path.splitext(name_image)[0] + ".dds"
                     name_image = name_image.lower()
                     texture_node = mat.node_tree.nodes.new('ShaderNodeTexImage')
+                    texture_node.location = (140, -230)
                     try:
                         texture_node.image = bpy.data.images.load(dir_images+name_image)
                     except:
@@ -199,28 +213,34 @@ class ImportSM3():
                         # Diffuse
                         link(texture_node.outputs['Color'], shader_node_grp.inputs['Base Color'])
                         link(texture_node.outputs['Alpha'], shader_node_grp.inputs['Alpha'])
-                        texture_node.location = (-300, 350)
+                        texture_node.location = (-600, 360)
                     if '-m' in name_image:
                         # Specular
-                        link(texture_node.outputs['Alpha'], shader_node_grp.inputs['Roughness'])
-                        texture_node.location = (-300, -350)
+                        texture_node.image.colorspace_settings.name = 'Non-Color'
+                        invert_node = mat.node_tree.nodes.new('ShaderNodeInvert')
+                        invert_node.location = (-500, 60)
+
+                        link(texture_node.outputs['Alpha'], invert_node.inputs['Color'])
+                        link(invert_node.outputs['Color'], shader_node_grp.inputs['Roughness'])
+                        texture_node.location = (-830, 30)
                     if '-b' in name_image:
                         # Normal
+                        texture_node.image.colorspace_settings.name = 'Non-Color'
                         # # RGB nodes
                         normal_separate = mat.node_tree.nodes.new('ShaderNodeSeparateRGB')
                         normal_separate.name = "separate_normal"
                         normal_separate.label = "Separate Normal"
-                        normal_separate.location = (-600, 0)
+                        normal_separate.location = (-860, -460)
 
                         normal_combine = mat.node_tree.nodes.new('ShaderNodeCombineRGB')
                         normal_combine.name = "combine_normal"
                         normal_combine.label = "Combine Normal"
-                        normal_combine.location = (-400, 0)
+                        normal_combine.location = (-700, -360)
 
                         # # Normal node
                         normal_map = mat.node_tree.nodes.new('ShaderNodeNormalMap')  # create normal map node
                         normal_map.inputs[0].default_value = 1.5
-                        normal_map.location = (-200, 0)
+                        normal_map.location = (-510, -260)
 
                         link(texture_node.outputs['Color'], normal_separate.inputs[0])
                         link(texture_node.outputs['Alpha'], normal_combine.inputs['R'])
@@ -228,7 +248,7 @@ class ImportSM3():
                         link(normal_combine.outputs[0], normal_map.inputs['Color'])
                         link(normal_map.outputs['Normal'], shader_node_grp.inputs['Normal'])
 
-                        texture_node.location = (-900, 0)
+                        texture_node.location = (-1190, -330)
                     data = self.read_int(4)
                     if data[3] != 0:
                         break
@@ -353,7 +373,7 @@ class ImportSM3():
             self.groups = mesh_data[2]  # data for all vertices
             self.grupy = mesh_data[3]  # all vertices?
             mat_id = mesh_data[5]
-            self.drawmesh(self.mesh_name)
+            self.build_mesh(self.mesh_name)
             if len(self.groups) == 0:
                 bone_name = self.mesh_name.split('=')[0]
                 matrix = self.make_right_mesh_position(bone_name)
@@ -366,12 +386,13 @@ class ImportSM3():
                 self.make_vertex_group()
                 armature_modifier = self.obj.modifiers.new(name="Armature Modifier", type='ARMATURE')
                 armature_modifier.object = self.armature_ob
-            print("Material name is", ('mat-'+str(mat_id)))
-            material = bpy.data.materials.get('mat-'+str(mat_id))
+            material_name = self.material_name(mat_id)
+            print("Material name is", material_name)
+            material = bpy.data.materials.get(material_name)
             if material:
                 self.mesh.materials.append(material)
 
-    def drawmesh(self, name):
+    def build_mesh(self, name):
         self.mesh = bpy.data.meshes.new(name)
         faces = [(face[0], face[2], face[1]) for face in self.faceslist]
         self.mesh.from_pydata(self.vertexy, [], faces)
@@ -381,6 +402,8 @@ class ImportSM3():
         # The addon doesn't import normals so fake smoothing instead
         for polygon in self.mesh.polygons:
             polygon.use_smooth = True
+        if self.armature_ob is not None:
+            self.obj.parent = self.armature_ob
         bpy.context.collection.objects.link(self.obj)
 
     def uv(self):

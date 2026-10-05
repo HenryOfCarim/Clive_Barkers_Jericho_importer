@@ -29,7 +29,7 @@ def import_sm3(context, filepath):
 
 class ImportJerichoSM3(Operator, ImportHelper):
     """Imported for Clive Baker's Jericho mesh format"""
-    bl_idname = "import_test.some_data"  # important since its how bpy.ops.import_test.some_data is constructed
+    bl_idname = "import_jericho.sm3"
     bl_label = "Import Jericho SM3"
 
     # ImportHelper mixin class uses this
